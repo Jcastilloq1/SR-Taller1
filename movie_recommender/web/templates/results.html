@@ -1,0 +1,24 @@
+<h2>Recomendaciones</h2>
+
+<p>User: {{user}}</p>
+<p>Modelo: {{method}}</p>
+<p>Similitud: {{similarity}}</p>
+
+<table border="1">
+
+
+<tr>
+<th>Película</th>
+<th>Rating predicho</th>
+</tr>
+
+{% for r in results %}
+
+<tr>
+<td>{{r.movie}}</td>
+<td>{{r.pred_rating}}</td>
+</tr>
+
+{% endfor %}
+
+</table>

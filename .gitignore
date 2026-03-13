@@ -1,0 +1,10 @@
+movie_recommender/data/
+*.csv
+venv/
+movie_recommender/venv/
+__pycache__/
+*.pyc
+venv/
+__pycache__/
+*.pyc
+*.csv
