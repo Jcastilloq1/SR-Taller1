@@ -1,24 +1,43 @@
-<h2>Recomendaciones</h2>
+<!DOCTYPE html>
+<html>
 
-<p>User: {{user}}</p>
-<p>Modelo: {{method}}</p>
-<p>Similitud: {{similarity}}</p>
+<head>
+<title>Recommendations</title>
+</head>
 
-<table border="1">
+<body>
 
+<h2>User {{user}}</h2>
 
-<tr>
-<th>Película</th>
-<th>Rating predicho</th>
-</tr>
+<h3>Method: {{method}} | Similarity: {{similarity}}</h3>
 
-{% for r in results %}
+<h3>Movies you rated</h3>
 
-<tr>
-<td>{{r.movie}}</td>
-<td>{{r.pred_rating}}</td>
-</tr>
+<ul>
+
+{% for movie in history %}
+
+<li>
+{{movie.title}} — Rating: {{movie.rating}}
+</li>
 
 {% endfor %}
 
-</table>
+</ul>
+
+<h3>Recommended Movies</h3>
+
+<ul>
+
+{% for movie in recs %}
+
+<li>
+{{movie.title}} (Predicted rating: {{movie.pred_rating}})
+</li>
+
+{% endfor %}
+
+</ul>
+
+</body>
+</html>
