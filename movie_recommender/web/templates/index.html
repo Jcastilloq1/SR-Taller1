@@ -1,46 +1,29 @@
-<h2>Movie Recommender</h2>
-
-<h3>Model RMSE</h3>
-
-<ul>
-<li>Cosine RMSE: {{rmses.cosine}}</li>
-<li>Pearson RMSE: {{rmses.pearson}}</li>
-<li>Jaccard RMSE: {{rmses.jaccard}}</li>
-</ul>
-
-
 <form action="/recommend" method="post">
 
-User ID:
-<input name="user">
+<label>User ID</label>
+<input type="number" name="user_id" required>
 
 <br><br>
 
-Modelo:
+<label>Recommendation Method</label>
 
 <select name="method">
-
-<option value="user">Usuario-Usuario</option>
 <option value="item">Item-Item</option>
-
+<option value="user">User-User</option>
 </select>
 
 <br><br>
 
-Similitud:
+<label>Similarity</label>
 
 <select name="similarity">
-
-<option value="cosine">Coseno</option>
+<option value="cosine">Cosine</option>
 <option value="pearson">Pearson</option>
 <option value="jaccard">Jaccard</option>
-
 </select>
 
 <br><br>
 
-<button type="submit">
-Recomendar
-</button>
+<button type="submit">Get Recommendations</button>
 
 </form>
