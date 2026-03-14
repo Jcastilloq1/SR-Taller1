@@ -32,7 +32,7 @@ RANDOM_SEED = 42
 OUTPUT_DIR = Path(__file__).parent / "movie_recommender" / "data"
 
 # Parámetros de muestreo
-SAMPLE_N_USERS = 1500          # Número de usuarios a muestrear
+SAMPLE_N_USERS = 2000          # Número de usuarios a muestrear
 MIN_RATINGS_PER_USER = 20      # Mínimo de ratings por usuario
 MIN_RATINGS_PER_MOVIE = 15     # Mínimo de ratings por película
 TEST_RATIO = 0.2               # Proporción para test
