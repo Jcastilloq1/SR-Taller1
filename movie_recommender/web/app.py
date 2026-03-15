@@ -40,33 +40,76 @@ app = Flask(__name__)
 CORS(app)
 
 # ============================================================
-# CACHE de matrices de similitud (se calculan bajo demanda)
+# CACHE de matrices de similitud (disco + memoria)
+# Se guardan como .pkl para no recalcular cada vez que se
+# reinicia el servidor.
 # ============================================================
+CACHE_DIR = Path(__file__).parent.parent / "models"
+CACHE_DIR.mkdir(exist_ok=True)
+
 similarity_cache = {}
 
 
 def get_similarity_matrix(model, model_type):
-    """Obtiene o calcula la matriz de similitud (con cache)."""
+    """
+    Obtiene la matriz de similitud:
+    1. Si está en memoria (similarity_cache), la retorna directo.
+    2. Si existe en disco (.pkl), la carga.
+    3. Si no, la calcula, la guarda en disco y en memoria.
+    """
     key = f"{model_type}_{model}"
-    if key not in similarity_cache:
-        print(f"  Calculando similitud: {key}...")
+    pkl_path = CACHE_DIR / f"{key}.pkl"
+
+    # 1. En memoria
+    if key in similarity_cache:
+        return similarity_cache[key]
+
+    # 2. En disco
+    if pkl_path.exists():
+        print(f"  Cargando {key} desde disco...")
         t0 = time.time()
-        if model_type == "user-user":
-            if model == "coseno":
-                similarity_cache[key] = cosine_similarity_model()
-            elif model == "pearson":
-                similarity_cache[key] = pearson_similarity_model()
-            else:
-                similarity_cache[key] = jaccard_similarity_model()
-        else:
-            if model == "coseno":
-                similarity_cache[key] = item_cosine_similarity()
-            elif model == "pearson":
-                similarity_cache[key] = item_pearson_similarity()
-            else:
-                similarity_cache[key] = item_jaccard_similarity()
+        similarity_cache[key] = pd.read_pickle(pkl_path)
         print(f"  Listo: {time.time() - t0:.1f}s")
+        return similarity_cache[key]
+
+    # 3. Calcular y guardar
+    print(f"  Calculando similitud: {key}...")
+    t0 = time.time()
+    if model_type == "user-user":
+        if model == "coseno":
+            similarity_cache[key] = cosine_similarity_model()
+        elif model == "pearson":
+            similarity_cache[key] = pearson_similarity_model()
+        else:
+            similarity_cache[key] = jaccard_similarity_model()
+    else:
+        if model == "coseno":
+            similarity_cache[key] = item_cosine_similarity()
+        elif model == "pearson":
+            similarity_cache[key] = item_pearson_similarity()
+        else:
+            similarity_cache[key] = item_jaccard_similarity()
+
+    elapsed = time.time() - t0
+    print(f"  Calculado en {elapsed:.1f}s. Guardando en disco...")
+    similarity_cache[key].to_pickle(pkl_path)
+    print(f"  Guardado: {pkl_path.name}")
+
     return similarity_cache[key]
+
+
+def precompute_all():
+    """
+    Pre-calcula todas las matrices de similitud al arrancar.
+    Si ya están en disco, las carga (~1 segundo cada una).
+    Si no, las calcula y guarda (minutos la primera vez).
+    """
+    print("\n  Pre-cargando matrices de similitud...")
+    total_t0 = time.time()
+    for model_type in ["item-item", "user-user"]:
+        for model in ["coseno", "pearson", "jaccard"]:
+            get_similarity_matrix(model, model_type)
+    print(f"\n  Todas las matrices listas en {time.time() - total_t0:.1f}s\n")
 
 
 # ============================================================
@@ -375,6 +418,9 @@ if __name__ == "__main__":
     print(f"  Películas: {matrix.shape[1]}")
     print(f"  Ratings: {len(ratings)}")
     print("=" * 50)
-    print("\n  Iniciando servidor en http://localhost:5000")
+
+    precompute_all()
+
+    print("  Iniciando servidor en http://localhost:5000")
     print("  CORS habilitado para el frontend de Lovable\n")
     app.run(host="0.0.0.0", port=5000, debug=False)
