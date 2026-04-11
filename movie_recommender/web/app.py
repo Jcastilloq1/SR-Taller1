@@ -40,6 +40,11 @@ app = Flask(__name__)
 CORS(app)
 
 # ============================================================
+# USUARIOS NUEVOS (en memoria, para la demo)
+# ============================================================
+new_users = {}  # {user_id: {"name": str, "ratings": {movieId: rating, ...}}}
+
+# ============================================================
 # CACHE de matrices de similitud (disco + memoria)
 # Se guardan como .pkl para no recalcular cada vez que se
 # reinicia el servidor.
@@ -118,6 +123,17 @@ def precompute_all():
 
 def format_user(user_id):
     """Formatea un usuario según el contrato: { id, name, totalRatings, avgRating }"""
+    # Nuevo usuario en memoria
+    if user_id in new_users:
+        u = new_users[user_id]
+        r = list(u["ratings"].values())
+        return {
+            "id": int(user_id),
+            "name": u["name"],
+            "totalRatings": len(r),
+            "avgRating": round(sum(r) / len(r), 1) if r else 0.0,
+        }
+    # Usuario existente en la matriz
     if user_id not in matrix.index:
         return None
     n_ratings = int(matrix.loc[user_id].notna().sum())
@@ -247,6 +263,17 @@ def api_get_user(user_id):
 @app.route("/api/users/<int:user_id>/ratings", methods=["GET"])
 def api_get_user_ratings(user_id):
     """GET /api/users/:id/ratings → { rating: Rating, movie: Movie }[]"""
+    # Nuevo usuario
+    if user_id in new_users:
+        result = []
+        for mid, r in new_users[user_id]["ratings"].items():
+            result.append({
+                "rating": {"userId": user_id, "movieId": int(mid), "rating": r},
+                "movie": format_movie(int(mid)),
+            })
+        return jsonify(sorted(result, key=lambda x: -x["rating"]["rating"]))
+
+    # Usuario existente
     user_ratings_list = get_user_ratings(user_id)
 
     result = []
@@ -285,6 +312,52 @@ def api_get_recommendations(user_id):
     k = int(request.args.get("k", 10))
     threshold = float(request.args.get("threshold", 0.0))
 
+    # ---- Nuevo usuario: calcular recomendaciones con item-item directo ----
+    if user_id in new_users:
+        user_ratings = new_users[user_id]["ratings"]
+        # Siempre usar item-item para nuevos usuarios (no están en la matriz user-user)
+        sim_matrix = get_similarity_matrix(model, "item-item")
+
+        rated_ids = set(user_ratings.keys())
+        recommendations = []
+
+        for movie_id in sim_matrix.index:
+            if movie_id in rated_ids:
+                continue
+
+            # Calcular predicción manualmente
+            numerator = 0.0
+            denominator = 0.0
+            neighbor_list = []
+
+            for rated_id, rating in user_ratings.items():
+                if rated_id not in sim_matrix.index:
+                    continue
+                s = sim_matrix.loc[movie_id, rated_id]
+                if s > threshold:
+                    numerator += s * rating
+                    denominator += abs(s)
+                    neighbor_list.append({
+                        "id": int(rated_id),
+                        "label": format_movie(int(rated_id))["title"],
+                        "similarity": round(float(s), 4),
+                        "commonItems": 0,
+                    })
+
+            if denominator > 0 and len(neighbor_list) >= 2:
+                pred = numerator / denominator
+                pred = float(np.clip(pred, 0.5, 5.0))
+                neighbor_list.sort(key=lambda x: -x["similarity"])
+                recommendations.append({
+                    "movie": format_movie(movie_id),
+                    "predictedRating": round(pred, 2),
+                    "neighbors": neighbor_list[:k],
+                })
+
+        recommendations.sort(key=lambda x: -x["predictedRating"])
+        return jsonify(recommendations[:20])
+
+    # ---- Usuario existente: flujo normal ----
     if user_id not in matrix.index:
         return jsonify({"error": "User not found"}), 404
 
@@ -331,13 +404,16 @@ def api_create_user():
 
     new_id = get_next_user_id()
 
-    # Guardar ratings
+    # Guardar en memoria para recomendaciones inmediatas
     ratings_dict = {r["movieId"]: r["rating"] for r in ratings_list}
+    new_users[new_id] = {"name": name, "ratings": ratings_dict}
+
+    # También guardar en CSV para persistencia
     add_new_user(new_id, ratings_dict)
 
-    # Nota: para que el nuevo usuario aparezca en las recomendaciones,
-    # habría que recargar la matriz. Por ahora retornamos el usuario creado.
     avg = sum(r["rating"] for r in ratings_list) / len(ratings_list)
+
+    print(f"  Nuevo usuario creado: id={new_id}, name={name}, ratings={len(ratings_list)}")
 
     return jsonify({
         "id": new_id,
